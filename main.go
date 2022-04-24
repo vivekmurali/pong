@@ -8,6 +8,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
+	"golang.org/x/image/font"
 )
 
 type Game struct {
@@ -17,25 +18,23 @@ type Game struct {
 
 	running bool
 
+	score struct{ p1, p2 int }
+
 	winner uint8
 
 	p1sprite   *ebiten.Image
 	p2sprite   *ebiten.Image
 	ballsprite *ebiten.Image
+
+	face font.Face
 }
 
 var game *Game
 
 func init() {
 	game = &Game{}
-	game.running = false
-	game.p1 = 85
-	game.p2 = 67.5
-	game.ball.x = 157.5
-	game.ball.y = 97.5
-
-	game.ball.vx = 3
-	game.ball.vy = 0
+	game.reset()
+	game.font()
 
 	// p1 paddle
 	game.p1sprite = ebiten.NewImage(5, 30)
@@ -52,8 +51,16 @@ func init() {
 
 func (g *Game) Update() error {
 
+	if g.winner > 0 {
+		g.running = false
+		if inpututil.IsKeyJustReleased(ebiten.KeySpace) {
+			g.reset()
+			g.running = true
+		}
+		return nil
+	}
 	if !g.running {
-		if ebiten.IsKeyPressed(ebiten.KeySpace) {
+		if inpututil.IsKeyJustReleased(ebiten.KeySpace) {
 			g.running = true
 		}
 		return nil
@@ -62,105 +69,30 @@ func (g *Game) Update() error {
 	g.ball.y += g.ball.vy
 
 	if g.ball.x >= 315 || g.ball.x <= 0 {
-		g.running = false
-		g.ball.x = 157.5
-		g.ball.y = 97.5
-		g.ball.vy = 0
-		g.p1 = 85
-		g.p2 = 95
+		g.countScore()
+		g.resetWithoutScore()
 
 		//TODO set winner
+
 	}
 
-	if g.ball.x >= 310 && (g.ball.y <= g.p2+30 && g.ball.y >= g.p2-5) {
+	g.collision()
 
-		g.ball.vx *= -1
-
-		relInter := g.p2 + 15 - (g.ball.y + 2.5)
-		g.ball.vy = (relInter / 17.5) * -1.5
-
-		if g.ball.vy > 1.5 {
-			g.ball.vy = 1.5
-		}
-		if g.ball.vy < -1.5 {
-			g.ball.vy = -1.5
-		}
-	}
-
-	if g.ball.x <= 5 && (g.ball.y <= g.p1+30 && g.ball.y >= g.p1-5) {
-		g.ball.vx *= -1
-
-		relInter := g.p1 + 15 - (g.ball.y + 2.5)
-		g.ball.vy = (relInter / 17.5) * -1.5
-
-		if g.ball.vy > 1.5 {
-			g.ball.vy = 1.5
-		}
-		if g.ball.vy < -1.5 {
-			g.ball.vy = -1.5
-		}
-	}
-
-	if g.ball.y <= 0 || g.ball.y >= 195 {
-		g.ball.vy *= -1
-	}
-
-	if ebiten.IsKeyPressed(ebiten.KeyA) {
-		if g.p1 >= 2.5 {
-			g.p1 -= 2.5
-		}
-	}
-
-	if ebiten.IsKeyPressed(ebiten.KeyZ) {
-		if g.p1 <= 167.5 {
-			g.p1 += 2.5
-		}
-	}
-
-	if ebiten.IsKeyPressed(ebiten.KeyK) {
-		if g.p2 >= 2.5 {
-			g.p2 -= 2.5
-		}
-	}
-
-	if ebiten.IsKeyPressed(ebiten.KeyM) {
-		if g.p2 <= 167.5 {
-			g.p2 += 2.5
-		}
-	}
-
-	// if ebiten.IsKeyPressed(ebiten.KeySpace) {
-	// 	g.running = false
-	// }
-
-	if t := inpututil.KeyPressDuration(ebiten.KeySpace); t > 2 && t < 10 {
-		g.running = false
-	}
+	g.control()
 
 	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	screen.Fill(color.RGBA{200, 30, 30, 100})
-	img := ebiten.NewImage(2, 200)
-	img.Fill(color.RGBA{255, 255, 255, 255})
-	op := &ebiten.DrawImageOptions{}
-	op.GeoM.Translate(159, 0)
-	screen.DrawImage(img, op)
-
-	op.GeoM.Reset()
-	op.GeoM.Translate(0, g.p1)
-	screen.DrawImage(g.p1sprite, op)
-
-	op.GeoM.Reset()
-	op.GeoM.Translate(315, g.p2)
-	screen.DrawImage(g.p2sprite, op)
-
-	op.GeoM.Reset()
-	op.GeoM.Translate(g.ball.x, g.ball.y)
-	screen.DrawImage(g.ballsprite, op)
-	// ebitenutil.DebugPrint(screen, "Hello, World!")
-	ebitenutil.DebugPrint(screen, fmt.Sprintf("ball.vy = %v; ball.y = %v;  p2.y = %v", g.ball.vy, g.ball.y, g.p2))
+	g.alwaysDraw(screen)
+	if g.winner >= 1 {
+		g.drawWinner(screen)
+	}
+	// op := &ebiten.DrawImageOptions{}
+	// rect := text.BoundString(g.face, fmt.Sprintf("P%v WINS!", g.winner))
+	// op.GeoM.Translate(float64(160-(rect.Bounds().Dx())), 100)
+	// text.DrawWithOptions(screen, fmt.Sprintf("P%v WINS!", g.winner), g.face, op)
+	ebitenutil.DebugPrint(screen, fmt.Sprintf("p1: %v; p2: %v", g.score.p1, g.score.p2))
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
