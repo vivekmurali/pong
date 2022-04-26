@@ -45,10 +45,10 @@ func (g *Game) alwaysDraw(screen *ebiten.Image) {
 }
 
 func (g *Game) drawWinner(screen *ebiten.Image) {
-	op := &ebiten.DrawImageOptions{}
 	rect := text.BoundString(g.face, fmt.Sprintf("P%v WINS!", g.winner))
-	op.GeoM.Translate(float64(160-(rect.Bounds().Dx())), 100)
-	text.DrawWithOptions(screen, fmt.Sprintf("P%v WINS!", g.winner), g.face, op)
+	// ebitenutil.DrawRect(screen, 150, 100, 50, 50, color.Black)
+	// ebitenutil.DrawRect(screen, float64(rect.Min.X), float64(rect.Min.Y), float64(rect.Dx()), float64(rect.Dy()), color.Black)
+	text.Draw(screen, fmt.Sprintf("P%v WINS!", g.winner), g.face, 169-(rect.Bounds().Dx()/2), 100, color.RGBA{255, 128, 0, 255})
 }
 
 func (g *Game) font() {
